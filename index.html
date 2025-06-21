@@ -3,28 +3,62 @@
   <head>
     <meta charset="UTF-8" />
     <title>RSS Reader</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      }
+    </style>
   </head>
-  <body class="bg-dark text-white d-flex flex-column min-vh-100">
-    <main class="container py-5 text-center">
-      <h1 class="display-4 mb-3">RSS агрегатор</h1>
-      <p class="lead mb-4">Начните читать RSS сегодня! Это легко, это красиво.</p>
-      <form id="rss-form" class="row justify-content-center mb-5" novalidate>
-        <div class="col-md-8 col-lg-6">
-          <div class="input-group">
-            <input
-              id="url-input"
-              type="url"
-              class="form-control"
-              placeholder="Ссылка RSS"
-              required
-            />
-            <button type="submit" class="btn btn-primary">Добавить</button>
+
+  <body class="d-flex flex-column min-vh-100 bg-dark text-white">
+    <main class="flex-grow-1">
+      <section class="container-fluid bg-dark p-5">
+        <div class="row">
+          <div class="col-md-10 col-lg-8 mx-auto text-white">
+            <!-- временно язык -->
+            <div class="mb-3">
+              <select id="language-switcher" class="form-select w-auto">
+                <option value="ru">Русский</option>
+                <option value="en">English</option>
+              </select>
+            </div>
+
+            <h1 id="main-title" class="display-3 mb-0">RSS агрегатор</h1>
+            <p id="main-description" class="lead">Начните читать RSS сегодня! Это легко, это красиво.</p>
+            
+            <form id="rss-form" class="rss-form text-body" novalidate>
+              <div class="row">
+                <div class="col">
+                  <div class="form-floating">
+                    <input
+                      id="url-input"
+                      type="url"
+                      name="url"
+                      class="form-control w-100"
+                      placeholder="ссылка RSS"
+                      required
+                      autocomplete="off"
+                    />
+                    <label for="url-input" id="input-label">Ссылка RSS</label>
+                  </div>
+                </div>
+                <div class="col-auto">
+                  <button id="submit-button" type="submit" class="h-100 btn btn-lg btn-primary px-sm-5">
+                    Добавить
+                  </button>
+                </div>
+              </div>
+            </form>
+        
+            <p id="feedback" class="feedback m-0 position-absolute small"></p>
+
+            
           </div>
-          <div id="feedback" class="form-text small text-start mt-1"></div>
         </div>
-      </form>
+      </section>
     </main>
+
     <script type="module" src="/src/main.js"></script>
   </body>
 </html>
