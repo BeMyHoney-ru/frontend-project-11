@@ -1,21 +1,25 @@
 import * as yup from 'yup';
 import onChange from 'on-change';
-import render from './watchers.js';
+import { handleValidationState } from './watchers.js'; 
 import { i18n } from './i18n.js';
 
 const initialState = {
   form: {
-    status: 'idle',
-    error: '',
+    status: 'idle', 
+    error: '', 
   },
   feeds: [],
 };
 
 export default () => {
   console.log('[app] init');
+
+  // при изменении watchedState вызываем handleValidationState()
   const watchedState = onChange(initialState, (path) => {
     console.log('[onChange triggered]:', path);
-    render(watchedState);
+    if (path.startsWith('form')) {
+      handleValidationState(watchedState.form);
+    }
   });
 
   const form = document.querySelector('#rss-form');
@@ -24,7 +28,6 @@ export default () => {
   const description = document.querySelector('#main-description');
   const button = document.querySelector('#submit-button');
 
-  // Установка переведнных текстов
   title.textContent = i18n.t('header');
   description.textContent = i18n.t('description');
   input.placeholder = i18n.t('label');
@@ -37,24 +40,26 @@ export default () => {
     .notOneOf(urls, i18n.t('feedback.rssAlreadyAdded'));
 
   form.addEventListener('submit', (e) => {
-    e.preventDefault();
+    e.preventDefault(); 
     const url = input.value.trim();
     const urls = watchedState.feeds.map((f) => f.url);
-    const schema = makeSchema(urls);
+    const schema = makeSchema(urls); 
 
-    schema.validate(url)
-      .then((validUrl) => {
+    schema.validate(url) 
+      .then((validUrl) => { 
+        console.log('[validation] success');
         watchedState.form = {
-          status: 'valid',
-          error: '',
+          status: 'valid',    
+          error: '',          
         };
-        watchedState.feeds.push({ url: validUrl });
-        form.reset();
-        input.focus();
+        watchedState.feeds.push({ url: validUrl }); 
+        form.reset();        
+        input.focus();       
       })
-      .catch((err) => {
+      .catch((err) => { 
+        console.log('[validation] error', err.message);
         watchedState.form = {
-          status: 'invalid',
+          status: 'invalid', 
           error: err.message,
         };
       });
