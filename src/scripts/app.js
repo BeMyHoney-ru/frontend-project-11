@@ -1,24 +1,32 @@
 import * as yup from 'yup';
 import onChange from 'on-change';
-import { handleValidationState } from './watchers.js'; 
 import { i18n } from './i18n.js';
+import { handleValidationState, renderFeedsAndPosts } from './watchers.js';
+import getRssContent from './loadRss.js';
+import parseRss from './parser.js';
 
 const initialState = {
   form: {
-    status: 'idle', 
-    error: '', 
+    status: 'idle',
+    error: '',
   },
   feeds: [],
+  posts: [],
 };
 
-export default () => {
-  console.log('[app] init');
+let feedId = 1;
+let postId = 1;
 
-  // при изменении watchedState вызываем handleValidationState()
+export default () => {
   const watchedState = onChange(initialState, (path) => {
     console.log('[onChange triggered]:', path);
+
     if (path.startsWith('form')) {
       handleValidationState(watchedState.form);
+    }
+
+    if (path === 'feeds' || path === 'posts') {
+      renderFeedsAndPosts(watchedState.feeds, watchedState.posts);
     }
   });
 
@@ -40,28 +48,57 @@ export default () => {
     .notOneOf(urls, i18n.t('feedback.rssAlreadyAdded'));
 
   form.addEventListener('submit', (e) => {
-    e.preventDefault(); 
+    e.preventDefault();
     const url = input.value.trim();
     const urls = watchedState.feeds.map((f) => f.url);
-    const schema = makeSchema(urls); 
+    const schema = makeSchema(urls);
 
-    schema.validate(url) 
-      .then((validUrl) => { 
-        console.log('[validation] success');
-        watchedState.form = {
-          status: 'valid',    
-          error: '',          
-        };
-        watchedState.feeds.push({ url: validUrl }); 
-        form.reset();        
-        input.focus();       
+    schema.validate(url)
+      .then((validUrl) => {
+        return getRssContent(validUrl) //переделал изза ошибок фидбека
+          .then((rssText) => {
+            const { feed, posts } = parseRss(rssText);
+
+            const newFeed = {
+              id: feedId++,
+              url: validUrl,
+              title: feed.title,
+              description: feed.description,
+            };
+            watchedState.feeds.push(newFeed);
+
+            const newPosts = posts.map((post) => ({
+              ...post,
+              feedId: newFeed.id,
+              id: postId++,
+            }));
+            watchedState.posts.push(...newPosts);
+
+            watchedState.form = {
+              status: 'valid',
+              error: '',
+            };
+            form.reset();
+            input.focus();
+          })
+          .catch((err) => {
+            console.log('[error]', err.message);
+            const errorKey = err.message === 'noValidRss'
+              ? i18n.t('feedback.noValidRss')
+              : i18n.t('feedback.connectionError');
+
+            watchedState.form = {
+              status: 'invalid',
+              error: errorKey,
+            };
+          });
       })
-      .catch((err) => { 
-        console.log('[validation] error', err.message);
+      .catch((validationErr) => {
         watchedState.form = {
-          status: 'invalid', 
-          error: err.message,
+          status: 'invalid',
+          error: validationErr.message,
         };
       });
   });
 };
+
