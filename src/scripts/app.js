@@ -20,11 +20,9 @@ let postId = 1;
 export default () => {
   const watchedState = onChange(initialState, (path) => {
     console.log('[onChange triggered]:', path);
-
     if (path.startsWith('form')) {
       handleValidationState(watchedState.form);
     }
-
     if (path === 'feeds' || path === 'posts') {
       renderFeedsAndPosts(watchedState.feeds, watchedState.posts);
     }
@@ -47,6 +45,38 @@ export default () => {
     .url(i18n.t('feedback.invalidUrl'))
     .notOneOf(urls, i18n.t('feedback.rssAlreadyAdded'));
 
+  // оновляем фиды
+  const updateFeeds = () => {
+    const promises = watchedState.feeds
+      .filter((feed) => Boolean(feed.url)) // защищаем от пустых урлов
+      .map((feed) =>
+        getRssContent(feed.url)
+          .then((rssText) => {
+            const { posts } = parseRss(rssText);
+            const existingLinks = watchedState.posts.map((post) => post.link);
+            const newPosts = posts
+              .filter((post) => !existingLinks.includes(post.link))
+              .map((post) => ({
+                ...post,
+                feedId: feed.id,
+                id: postId++,
+              }));
+            if (newPosts.length > 0) {
+              watchedState.posts.unshift(...newPosts);
+            }
+          })
+          .catch((err) => {
+            console.log(`[updateFeeds error]: ${err.message}`);
+          })
+      );
+
+    Promise.all(promises)
+      .finally(() => {
+        setTimeout(updateFeeds, 5000); // повтор через 5 сек
+      });
+  };
+
+  // обработка формы
   form.addEventListener('submit', (e) => {
     e.preventDefault();
     const url = input.value.trim();
@@ -54,51 +84,55 @@ export default () => {
     const schema = makeSchema(urls);
 
     schema.validate(url)
-      .then((validUrl) => {
-        return getRssContent(validUrl) //переделал изза ошибок фидбека
-          .then((rssText) => {
-            const { feed, posts } = parseRss(rssText);
+      .then((validUrl) => getRssContent(validUrl)
+        .then((rssText) => {
+          const { feed, posts } = parseRss(rssText);
 
-            const newFeed = {
-              id: feedId++,
-              url: validUrl,
-              title: feed.title,
-              description: feed.description,
-            };
-            watchedState.feeds.push(newFeed);
+          const newFeed = {
+            id: feedId++,
+            url: validUrl,
+            title: feed.title,
+            description: feed.description,
+          };
+          watchedState.feeds.push(newFeed);
 
-            const newPosts = posts.map((post) => ({
-              ...post,
-              feedId: newFeed.id,
-              id: postId++,
-            }));
-            watchedState.posts.push(...newPosts);
+          const newPosts = posts.map((post) => ({
+            ...post,
+            feedId: newFeed.id,
+            id: postId++,
+          }));
+          watchedState.posts.push(...newPosts);
 
-            watchedState.form = {
-              status: 'valid',
-              error: '',
-            };
-            form.reset();
-            input.focus();
-          })
-          .catch((err) => {
-            console.log('[error]', err.message);
-            const errorKey = err.message === 'noValidRss'
-              ? i18n.t('feedback.noValidRss')
-              : i18n.t('feedback.connectionError');
+          watchedState.form = {
+            status: 'valid',
+            error: '',
+          };
+          form.reset();
+          input.focus();
 
-            watchedState.form = {
-              status: 'invalid',
-              error: errorKey,
-            };
-          });
-      })
-      .catch((validationErr) => {
+          // после первого фида обновляем
+          if (watchedState.feeds.length === 1) {
+            updateFeeds();
+          }
+        }))
+      .catch((err) => {
+        console.log('[error]', err.message);
+        let errorMessage;
+
+        if (err.message === 'noValidRss') {
+          errorMessage = i18n.t('feedback.noValidRss');
+        } else if (err.message === i18n.t('feedback.rssAlreadyAdded')) {
+          errorMessage = i18n.t('feedback.rssAlreadyAdded');
+        } else if (err.message === i18n.t('feedback.invalidUrl')) {
+          errorMessage = i18n.t('feedback.invalidUrl');
+        } else {
+          errorMessage = i18n.t('feedback.connectionError');
+        }
+
         watchedState.form = {
           status: 'invalid',
-          error: validationErr.message,
+          error: errorMessage,
         };
       });
   });
 };
-
