@@ -1,5 +1,6 @@
-import { i18n } from './i18n.js';
 
+import { i18n } from './i18n.js';
+import { Modal } from 'bootstrap';
 
 export const handleValidationState = (formState) => {
   const input = document.querySelector('#url-input');
@@ -30,51 +31,73 @@ export const handleValidationState = (formState) => {
   }
 };
 
+export const renderFeedsAndPosts = (feeds, posts, state) => {
+  const feedsContainer = document.querySelector('.feeds');
+  const postsContainer = document.querySelector('.posts');
 
-
-export const renderFeedsAndPosts = (feeds, posts) => {
-  const feedsContainer = document.querySelector('#feeds');
-  const postsContainer = document.querySelector('#posts');
-
-  // чистим
-  feedsContainer.innerHTML = '';
-  postsContainer.innerHTML = '';
-
-  // Рендерим фиды
-  const feedsBlock = document.createElement('div');
-  feedsBlock.innerHTML = '<h2>Фиды</h2>';
+  feedsContainer.innerHTML = '<h2>Фиды</h2>';
   const feedsList = document.createElement('ul');
   feedsList.classList.add('list-group', 'mb-4');
-
-  feeds.forEach(({ title, description }) => {
+  feeds.forEach((feed) => {
     const li = document.createElement('li');
     li.classList.add('list-group-item');
-    li.innerHTML = `<h3>${title}</h3><p>${description}</p>`;
-    feedsList.append(li);
+    li.innerHTML = `<h3>${feed.title}</h3><p>${feed.description}</p>`;
+    feedsList.appendChild(li);
   });
+  feedsContainer.appendChild(feedsList);
 
-  feedsBlock.append(feedsList);
-  feedsContainer.append(feedsBlock);
-
-  // Рендерим посты
-  const postsBlock = document.createElement('div');
-  postsBlock.innerHTML = '<h2>Посты</h2>';
+  postsContainer.innerHTML = '<h2>Посты</h2>';
   const postsList = document.createElement('ul');
   postsList.classList.add('list-group');
 
-  posts.forEach(({ title, link }) => {
+  posts.forEach((post) => {
     const li = document.createElement('li');
     li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-start');
-    const a = document.createElement('a');
-    a.setAttribute('href', link);
-    a.setAttribute('target', '_blank');
-    a.setAttribute('rel', 'noopener noreferrer');
-    a.textContent = title;
-    li.append(a);
-    postsList.append(li);
+
+    const link = document.createElement('a');
+    link.href = post.link;
+    link.target = '_blank';
+    link.rel = 'noopener noreferrer';
+    link.textContent = post.title;
+
+    // меняем стиль прочитанные/непрочитанные
+    if (state.readPosts.includes(post.id)) {
+      link.classList.remove('fw-bold');
+      link.classList.add('fw-normal', 'text-secondary'); // делаем серым прочитанное
+    } else {
+      link.classList.remove('fw-normal', 'text-secondary');
+      link.classList.add('fw-bold');
+    }
+
+    const previewButton = document.createElement('button');
+    previewButton.classList.add('btn', 'btn-sm', 'btn-primary', 'ms-2');
+    previewButton.textContent = 'Просмотр';
+
+    previewButton.addEventListener('click', () => {
+      // + в прочитанные
+      if (!state.readPosts.includes(post.id)) {
+        state.readPosts.push(post.id);
+      }
+
+      // модальное окно
+      const modalTitle = document.getElementById('modalTitle');
+      const modalBody = document.getElementById('modalBody');
+      const modalFullArticle = document.getElementById('modalFullArticle');
+
+      modalTitle.textContent = post.title;
+      modalBody.textContent = post.description;
+      modalFullArticle.href = post.link;
+
+      // открываеи модальное окно
+      const modalElement = document.getElementById('previewModal');
+      const bsModal = new Modal(modalElement);
+      bsModal.show();
+    });
+
+    li.appendChild(link);
+    li.appendChild(previewButton);
+    postsList.appendChild(li);
   });
 
-  postsBlock.append(postsList);
-  postsContainer.append(postsBlock);
+  postsContainer.appendChild(postsList);
 };
-

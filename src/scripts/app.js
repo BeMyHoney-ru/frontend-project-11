@@ -12,6 +12,7 @@ const initialState = {
   },
   feeds: [],
   posts: [],
+  readPosts: [],
 };
 
 let feedId = 1;
@@ -23,8 +24,9 @@ export default () => {
     if (path.startsWith('form')) {
       handleValidationState(watchedState.form);
     }
-    if (path === 'feeds' || path === 'posts') {
-      renderFeedsAndPosts(watchedState.feeds, watchedState.posts);
+    // обновляем с учётом прочитанности
+    if (path === 'feeds' || path === 'posts' || path === 'readPosts') {
+      renderFeedsAndPosts(watchedState.feeds, watchedState.posts, watchedState);
     }
   });
 
