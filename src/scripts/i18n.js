@@ -1,8 +1,7 @@
 import i18next from 'i18next';
-import resources from './locales/languages.js';
+import resources from './locales/languages';
 
 const i18n = i18next.createInstance();
-
 const defaultLanguage = 'ru';
 
 const initI18n = () => i18n.init({

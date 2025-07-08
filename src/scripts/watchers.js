@@ -1,12 +1,12 @@
-
-import { i18n } from './i18n.js';
-import { Modal } from 'bootstrap';
+import { i18n } from './i18n';
 
 export const handleValidationState = (formState) => {
   const input = document.querySelector('#url-input');
   const feedback = document.querySelector('#feedback');
 
-  if (!input || !feedback) return;
+  if (!input || !feedback) {
+    return;
+  }
 
   if (formState.status === 'valid') {
     input.classList.remove('is-invalid');
@@ -31,73 +31,75 @@ export const handleValidationState = (formState) => {
   }
 };
 
-export const renderFeedsAndPosts = (feeds, posts, state) => {
+export const renderFeedsAndPosts = (feeds, posts) => {
   const feedsContainer = document.querySelector('.feeds');
   const postsContainer = document.querySelector('.posts');
 
-  feedsContainer.innerHTML = '<h2>Фиды</h2>';
+  feedsContainer.innerHTML = `<h2>${i18n.t('rss.feeds')}</h2>`;
+  postsContainer.innerHTML = `<h2>${i18n.t('rss.posts')}</h2>`;
+
   const feedsList = document.createElement('ul');
-  feedsList.classList.add('list-group', 'mb-4');
+  feedsList.classList.add('list-group', 'mb-3');
+
   feeds.forEach((feed) => {
     const li = document.createElement('li');
     li.classList.add('list-group-item');
     li.innerHTML = `<h3>${feed.title}</h3><p>${feed.description}</p>`;
     feedsList.appendChild(li);
   });
+
   feedsContainer.appendChild(feedsList);
 
-  postsContainer.innerHTML = '<h2>Посты</h2>';
   const postsList = document.createElement('ul');
   postsList.classList.add('list-group');
 
-  posts.forEach((post) => {
+  posts.slice().reverse().forEach((post) => {
     const li = document.createElement('li');
     li.classList.add('list-group-item', 'd-flex', 'justify-content-between', 'align-items-start');
 
     const link = document.createElement('a');
-    link.href = post.link;
-    link.target = '_blank';
-    link.rel = 'noopener noreferrer';
+    link.setAttribute('href', post.link);
+    link.setAttribute('target', '_blank');
+    link.setAttribute('rel', 'noopener noreferrer');
+    link.classList.add('fw-bold', 'me-3');
     link.textContent = post.title;
 
-    // меняем стиль прочитанные/непрочитанные
-    if (state.readPosts.includes(post.id)) {
-      link.classList.remove('fw-bold');
-      link.classList.add('fw-normal', 'text-secondary'); // делаем серым прочитанное
-    } else {
-      link.classList.remove('fw-normal', 'text-secondary');
-      link.classList.add('fw-bold');
-    }
+    const button = document.createElement('button');
+    button.classList.add('btn', 'btn-sm', 'btn-primary');
+    button.textContent = i18n.t('rss.linkBtn');
+    button.setAttribute('type', 'button');
+    button.dataset.bsToggle = 'modal';
+    button.dataset.bsTarget = '#modal';
 
-    const previewButton = document.createElement('button');
-    previewButton.classList.add('btn', 'btn-sm', 'btn-primary', 'ms-2');
-    previewButton.textContent = 'Просмотр';
-
-    previewButton.addEventListener('click', () => {
-      // + в прочитанные
-      if (!state.readPosts.includes(post.id)) {
-        state.readPosts.push(post.id);
-      }
-
-      // модальное окно
-      const modalTitle = document.getElementById('modalTitle');
-      const modalBody = document.getElementById('modalBody');
-      const modalFullArticle = document.getElementById('modalFullArticle');
+    button.addEventListener('click', () => {
+      const modalTitle = document.querySelector('.modal-title');
+      const modalBody = document.querySelector('.modal-body');
+      const fullArticle = document.querySelector('.full-article');
 
       modalTitle.textContent = post.title;
       modalBody.textContent = post.description;
-      modalFullArticle.href = post.link;
+      fullArticle.setAttribute('href', post.link);
 
-      // открываеи модальное окно
-      const modalElement = document.getElementById('previewModal');
-      const bsModal = new Modal(modalElement);
-      bsModal.show();
+      link.classList.remove('fw-bold');
+      link.classList.add('fw-normal', 'text-muted');
     });
 
-    li.appendChild(link);
-    li.appendChild(previewButton);
+    li.append(link, button);
     postsList.appendChild(li);
   });
 
   postsContainer.appendChild(postsList);
+
+  // Устранение ARIA предупреждения при закрытии модалки
+  const modalElement = document.getElementById('modal');
+  if (modalElement) {
+    modalElement.addEventListener('hidden.bs.modal', () => {
+      setTimeout(() => {
+        const input = document.querySelector('#url-input');
+        if (input) {
+          input.focus();
+        }
+      }, 0);
+    });
+  }
 };

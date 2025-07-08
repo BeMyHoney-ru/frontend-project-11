@@ -1,7 +1,3 @@
-// изменять язык по языку системы?
-// const userLang = navigator.language || navigator.userLanguage; 
-// const lang = userLang.startsWith('ru') ? 'ru' : 'en';
-
 const resources = {
   ru: {
     translation: {

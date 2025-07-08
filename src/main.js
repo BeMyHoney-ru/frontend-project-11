@@ -1,21 +1,18 @@
 import 'bootstrap/dist/css/bootstrap.min.css';
-import app from './scripts/app.js';
-import initI18n from './scripts/i18n.js';
-import { i18n } from './scripts/i18n.js';
-import makeModalDraggable from './scripts/dragModal.js';
+import 'bootstrap';
+import app from './scripts/app';
+import initI18n, { i18n } from './scripts/i18n';
+import makeModalDraggable from './scripts/dragModal';
 
 initI18n().then(() => {
   app();
-  makeModalDraggable(); //попробуем сделать перетаскиваемым
-
+  makeModalDraggable();
 
   const switcher = document.querySelector('#language-switcher');
   switcher.addEventListener('change', (e) => {
     const newLang = e.target.value;
     i18n.changeLanguage(newLang).then(() => {
-      app(); // перезапускаем интерфейс с новым языком
+      app();
     });
   });
 });
-
-// косяк - если на экране фидбек уже есть при смене языка остаётся на старом языке
