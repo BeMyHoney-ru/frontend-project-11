@@ -90,7 +90,7 @@ export const renderFeedsAndPosts = (feeds, posts) => {
 
   postsContainer.appendChild(postsList);
 
-  // Устранение ARIA предупреждения при закрытии модалки
+  // Устранение ARIA предупреждения при закрытии модалки - не рабоает
   const modalElement = document.getElementById('modal');
   if (modalElement) {
     modalElement.addEventListener('hidden.bs.modal', () => {
