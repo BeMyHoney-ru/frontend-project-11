@@ -56,41 +56,87 @@ export default () => {
     schema.validate(url)
       .then((validUrl) => getRssContent(validUrl)
         .then((rssText) => {
-          const { feed, posts } = parseRss(rssText);
+          try {
+            const { feed, posts } = parseRss(rssText);
 
-          const newFeed = {
-            id: feedId,
-            url: validUrl,
-            title: feed.title,
-            description: feed.description,
-          };
-          feedId += 1;
-          watchedState.feeds.push(newFeed);
+            const newFeed = {
+              id: feedId,
+              url: validUrl,
+              title: feed.title,
+              description: feed.description,
+            };
+            feedId += 1;
+            watchedState.feeds.push(newFeed);
 
-          const newPosts = posts.map((post) => ({
-            ...post,
-            feedId: newFeed.id,
-            id: postId,
-          }));
-          postId += posts.length;
-          watchedState.posts.push(...newPosts);
+            const newPosts = posts.map((post) => ({
+              ...post,
+              feedId: newFeed.id,
+              id: postId++,
+            }));
+            watchedState.posts.push(...newPosts);
 
+            watchedState.form = {
+              status: 'valid',
+              error: '',
+            };
+
+            form.reset();
+            input.focus();
+          } catch (err) { //теперь не ошибка сети, а не валидный урл
+            console.log('[error]', err.message);
+
+            const errorKey = err.message === 'noValidRss'
+              ? i18n.t('feedback.noValidRss')
+              : i18n.t('feedback.connectionError');
+
+            watchedState.form = {
+              status: 'invalid',
+              error: errorKey,
+            };
+          }
+        })
+        .catch((err) => {
+          console.log('[error]', err.message);
           watchedState.form = {
-            status: 'valid',
-            error: '',
+            status: 'invalid',
+            error: i18n.t('feedback.connectionError'),
           };
-
-          form.reset();
-          input.focus();
         }))
-      .catch((err) => {
-        console.log('[error]', err.message);
-
-        const isValidationError = err.name === 'ValidationError';
+      .catch((validationError) => {
         watchedState.form = {
           status: 'invalid',
-          error: isValidationError ? err.message : i18n.t('feedback.connectionError'),
+          error: validationError.message,
         };
       });
   });
+//возвращаем апдейты
+  const updateFeeds = () => {
+  const promises = watchedState.feeds.map((feed) =>
+    getRssContent(feed.url)
+      .then((rssText) => {
+        const { posts } = parseRss(rssText);
+        const existingLinks = watchedState.posts.map((post) => post.link);
+        const newPosts = posts
+          .filter((post) => !existingLinks.includes(post.link))
+          .map((post) => ({
+            ...post,
+            feedId: feed.id,
+            id: postId++,
+          }));
+        if (newPosts.length > 0) {
+          watchedState.posts.push(...newPosts);
+        }
+      })
+      .catch((err) => {
+        console.log('[updateFeeds error]', err.message);
+      })
+  );
+
+  Promise.all(promises).finally(() => {
+    setTimeout(updateFeeds, 5000);
+  });
+};
+
+// Старт обновления после добавления первого фида
+updateFeeds();
 };
