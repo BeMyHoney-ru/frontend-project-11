@@ -61,7 +61,7 @@ export const renderFeedsAndPosts = (feeds, posts) => {
     link.setAttribute('href', post.link);
     link.setAttribute('target', '_blank');
     link.setAttribute('rel', 'noopener noreferrer');
-    link.classList.add('fw-bold', 'me-3');
+    link.classList.add('fw-bold');
     link.textContent = post.title;
 
     const button = document.createElement('button');
