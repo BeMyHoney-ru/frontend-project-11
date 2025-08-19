@@ -1,142 +1,196 @@
-import * as yup from 'yup';
-import onChange from 'on-change';
-import { i18n } from './i18n';
-import { handleValidationState, renderFeedsAndPosts } from './watchers';
-import getRssContent from './loadRss';
-import parseRss from './parser';
+import { setupYup, validateUrl } from './validation.js'
+import View from './view.js'
+import { fetchRss, parseRss } from './rss.js'
 
-const initialState = {
-  form: {
-    status: 'idle',
-    error: '',
-  },
-  feeds: [],
-  posts: [],
-};
+const initApp = (i18nInstance) => {
+  setupYup(i18nInstance)
 
-export default () => {
-  let feedId = 1;
-  let postId = 1;
+  const state = {
+    feeds: [],
+    posts: [],
+    form: {
+      status: 'filling',
+      error: null,
+    },
+    ui: {
+      activeFeed: null,
+    },
+    timers: {},
+  }
 
-  const watchedState = onChange(initialState, (path) => {
-    console.log('[onChange triggered]:', path);
+  const view = new View(i18nInstance)
+  view.init(state)
 
-    if (path.startsWith('form')) {
-      handleValidationState(watchedState.form);
-    }
+  // Функция для добавления новых постов
+  const addNewPosts = (newPosts, feedId) => {
+    const existingLinks = new Set(state.posts.map(post => post.link))
+    const uniqueNewPosts = newPosts.filter(post => !existingLinks.has(post.link))
 
-    if (path === 'feeds' || path === 'posts') {
-      renderFeedsAndPosts(watchedState.feeds, watchedState.posts);
-    }
-  });
+    if (uniqueNewPosts.length === 0) return []
 
-  const form = document.querySelector('#rss-form');
-  const input = document.querySelector('#url-input');
-  const title = document.querySelector('#main-title');
-  const description = document.querySelector('#main-description');
-  const button = document.querySelector('#submit-button');
+    const postsWithMeta = uniqueNewPosts.map(post => ({
+      ...post,
+      id: `${feedId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      feedId,
+      viewed: false,
+    }))
 
-  title.textContent = i18n.t('header');
-  description.textContent = i18n.t('description');
-  input.placeholder = i18n.t('label');
-  button.textContent = i18n.t('button');
+    state.posts = [...postsWithMeta, ...state.posts]
+    return postsWithMeta
+  }
 
-  const makeSchema = (urls) => yup
-    .string()
-    .required(i18n.t('feedback.emptyField'))
-    .url(i18n.t('feedback.invalidUrl'))
-    .notOneOf(urls, i18n.t('feedback.rssAlreadyAdded'));
+  // Функция обновления фида
+  const updateFeed = async (feedId) => {
+    const feed = state.feeds.find(f => f.id === feedId)
+    if (!feed) return
 
-  form.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const url = input.value.trim();
-    const urls = watchedState.feeds.map((f) => f.url);
-    const schema = makeSchema(urls);
+    try {
+      const xmlString = await fetchRss(feed.url)
+      const { posts: newPosts } = parseRss(xmlString)
+      const addedPosts = addNewPosts(newPosts, feedId)
 
-    schema.validate(url)
-      .then((validUrl) => getRssContent(validUrl)
-        .then((rssText) => {
-          try {
-            const { feed, posts } = parseRss(rssText);
+      if (addedPosts.length > 0) {
+        // Сохраняем состояние просмотра перед обновлением
+        const viewedLinks = new Set()
+        state.posts.forEach((post) => {
+          if (post.viewed) viewedLinks.add(post.link)
+        })
 
-            const newFeed = {
-              id: feedId,
-              url: validUrl,
-              title: feed.title,
-              description: feed.description,
-            };
-            feedId += 1;
-            watchedState.feeds.push(newFeed);
-
-            const newPosts = posts.map((post) => ({
-              ...post,
-              feedId: newFeed.id,
-              id: postId++,
-            }));
-            watchedState.posts.push(...newPosts);
-
-            watchedState.form = {
-              status: 'valid',
-              error: '',
-            };
-
-            form.reset();
-            input.focus();
-          } catch (err) { //теперь не ошибка сети, а не валидный урл
-            console.log('[error]', err.message);
-
-            const errorKey = err.message === 'noValidRss'
-              ? i18n.t('feedback.noValidRss')
-              : i18n.t('feedback.connectionError');
-
-            watchedState.form = {
-              status: 'invalid',
-              error: errorKey,
-            };
+        // Обновляем состояние для новых постов
+        state.posts.forEach((post) => {
+          if (viewedLinks.has(post.link)) {
+            post.viewed = true
           }
         })
-        .catch((err) => {
-          console.log('[error]', err.message);
-          watchedState.form = {
-            status: 'invalid',
-            error: i18n.t('feedback.connectionError'),
-          };
-        }))
-      .catch((validationError) => {
-        watchedState.form = {
-          status: 'invalid',
-          error: validationError.message,
-        };
-      });
-  });
-//возвращаем апдейты
-  const updateFeeds = () => {
-  const promises = watchedState.feeds.map((feed) =>
-    getRssContent(feed.url)
-      .then((rssText) => {
-        const { posts } = parseRss(rssText);
-        const existingLinks = watchedState.posts.map((post) => post.link);
-        const newPosts = posts
-          .filter((post) => !existingLinks.includes(post.link))
-          .map((post) => ({
-            ...post,
-            feedId: feed.id,
-            id: postId++,
-          }));
-        if (newPosts.length > 0) {
-          watchedState.posts.push(...newPosts);
+
+        view.renderPosts(state.posts)
+      }
+    }
+    catch (error) {
+      console.error(`Ошибка обновления фида ${feedId}:`, error)
+    }
+    finally {
+      // Планируем следующее обновление через 5 секунд
+      state.timers[feedId] = setTimeout(() => updateFeed(feedId), 5000)
+    }
+  }
+
+  // Запуск периодического обновления
+  const startFeedUpdates = (feedId) => {
+    // Останавливаем предыдущий таймер, если был
+    if (state.timers[feedId]) {
+      clearTimeout(state.timers[feedId])
+    }
+    // Первый запуск сразу
+    updateFeed(feedId)
+  }
+
+  // Обработчик отправки формы
+  view.form.addEventListener('submit', async (e) => {
+    e.preventDefault()
+    const formData = new FormData(e.target)
+    const url = formData.get('url').trim()
+
+    try {
+      // Валидация
+      await validateUrl(url, state.feeds.map(feed => feed.url))
+      state.form.status = 'loading'
+      view.disableForm()
+
+      // Загрузка данных
+      const xmlString = await fetchRss(url)
+      const { feed, posts } = parseRss(xmlString)
+
+      // Создание фида
+      const feedId = Date.now().toString()
+      const newFeed = {
+        id: feedId,
+        url,
+        title: feed.title,
+        description: feed.description,
+      }
+
+      // Добавление фида и постов
+      state.feeds.push(newFeed)
+      const newPosts = posts.map(post => ({
+        ...post,
+        id: `${feedId}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        feedId,
+        viewed: false,
+      }))
+      state.posts = [...newPosts, ...state.posts]
+
+      // Обновление UI
+      state.form.status = 'added'
+      state.form.error = null
+      view.clearForm()
+      view.render({ feeds: state.feeds, posts: state.posts })
+
+      // Запуск отслеживания обновлений
+      startFeedUpdates(feedId)
+      view.showSuccess('RSS успешно загружен')
+    }
+    catch (error) {
+      state.form.status = 'error'
+      state.form.error = error.message
+
+      if (error.name === 'NetworkError' || error.name === 'ParseError') {
+        view.showError(`errors.${error.name.toLowerCase()}`)
+      }
+      else {
+        view.showError(error.message)
+      }
+    }
+    finally {
+      view.enableForm()
+    }
+  })
+
+  // Сброс ошибки при вводе
+  view.input.addEventListener('input', () => {
+    if (state.form.status === 'error') {
+      view.input.classList.remove('is-invalid')
+      state.form.status = 'filling'
+    }
+  })
+
+  view.postsContainer.addEventListener('click', (e) => {
+    // Обработка клика на ссылке
+    const postLink = e.target.closest('a')
+    if (postLink) {
+      const postId = postLink.dataset.id
+      const post = state.posts.find(p => p.id === postId)
+
+      if (post) {
+        post.viewed = true
+        postLink.classList.remove('fw-bold')
+        postLink.classList.add('fw-normal', 'link-secondary')
+      }
+    }
+
+    // Обработка кнопки предпросмотра
+    const previewButton = e.target.closest('button[data-id]')
+    if (previewButton) {
+      const postId = previewButton.dataset.id
+      const post = state.posts.find(p => p.id === postId)
+
+      if (post) {
+        // Помечаем пост как просмотренный
+        post.viewed = true
+
+        // Обновляем UI
+        const postElement = previewButton.closest('li')
+        const postLink = postElement.querySelector('a')
+        if (postLink) {
+          postLink.classList.remove('fw-bold')
+          postLink.classList.add('fw-normal', 'link-secondary')
         }
-      })
-      .catch((err) => {
-        console.log('[updateFeeds error]', err.message);
-      })
-  );
 
-  Promise.all(promises).finally(() => {
-    setTimeout(updateFeeds, 5000);
-  });
-};
+        // Показываем модальное окно
+        view.showPostModal(post)
+      }
+    }
+  })
+}
 
-// Старт обновления после добавления первого фида
-updateFeeds();
-};
+export default initApp
